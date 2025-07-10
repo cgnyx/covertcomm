@@ -25,6 +25,3 @@ A modern Python steganography tool for hiding secret messages in images and audi
 
 ## Samples
 Sample cover and stego files are provided in the `samples/` directory.
-
----
-For more details, see code comments or contact the author. 
