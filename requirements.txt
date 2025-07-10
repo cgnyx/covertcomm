@@ -1,0 +1,19 @@
+# Core image processing
+Pillow>=9.0.0
+
+# Numerical operations
+numpy>=1.21.0
+
+# Audio playback (for GUI)
+pygame>=2.1.0
+
+
+
+opencv-python
+PyWavelets
+scipy
+
+PySide6>=6.4.0
+qt-material>=2.14.0
+pycryptodome
+''' LSB with pseudo-random placement '''
