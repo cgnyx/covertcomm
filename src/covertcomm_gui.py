@@ -1,7 +1,4 @@
-"""
-Improved CovertComm GUI Module
-Enhanced version with better audio support and file path management.
-"""
+
 
 import sys
 import os
@@ -290,7 +287,7 @@ class CovertCommMainWindow(QMainWindow):
         self.video_message_text.setStyleSheet(f"font-size: 13px; border-radius: 6px; background: #fff; color: {SHARK}; border: 1px solid {MANTLE};")
         left.addWidget(msg_label)
         left.addWidget(self.video_message_text)
-        key_label = QLabel("AES Key (16/24/32 bytes)")
+        key_label = QLabel("AES Key  ")
         self.video_key_input = QLineEdit()
         self.video_key_input.setEchoMode(QLineEdit.Password)
         left.addWidget(key_label)
@@ -387,7 +384,7 @@ class CovertCommMainWindow(QMainWindow):
         self.text_message_text.setStyleSheet(f"font-size: 13px; border-radius: 6px; background: #fff; color: {SHARK}; border: 1px solid {MANTLE};")
         left.addWidget(msg_label)
         left.addWidget(self.text_message_text)
-        key_label = QLabel("AES Key (16/24/32 bytes)")
+        key_label = QLabel("AES Key ")
         self.text_key_input = QLineEdit()
         self.text_key_input.setEchoMode(QLineEdit.Password)
         left.addWidget(key_label)
@@ -432,7 +429,7 @@ class CovertCommMainWindow(QMainWindow):
             self.show_snackbar("Please enter an AES key.", 3500)
             return
         try:
-            output_path = None  # Will default to samples/stego_txt/
+            output_path = None  
             result_path = encode_stego('text', self.selected_text_path, message, key, output_path)
             self.show_snackbar(f"Message hidden successfully! Saved to {os.path.basename(result_path)}", 3500)
         except Exception as e:
