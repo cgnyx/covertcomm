@@ -15,7 +15,11 @@ from qt_material import apply_stylesheet
 from PIL import Image
 import numpy as np
 # Import core steganography classes
-from .covertcomm_core import ImageSteganography, AudioSteganography
+from .covertcomm_core import ImageSteganography, AudioSteganography, encode_stego, decode_stego
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimediaWidgets import QVideoWidget
 
 # Palette
 SHARK = "#2A2F33"
@@ -76,12 +80,20 @@ class CovertCommMainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.image_tab = QWidget()
         self.audio_tab = QWidget()
+        self.video_tab = QWidget()
+        self.text_tab = QWidget()
         dark_icon = QIcon.fromTheme('image-x-generic')
         audio_icon = QIcon.fromTheme('audio-x-generic')
+        video_icon = QIcon.fromTheme('video-x-generic')
+        text_icon = QIcon.fromTheme('text-x-generic')
         self.tabs.addTab(self.image_tab, dark_icon, "Image Steganography")
         self.tabs.addTab(self.audio_tab, audio_icon, "Audio Steganography")
+        self.tabs.addTab(self.video_tab, video_icon, "Video Steganography")
+        self.tabs.addTab(self.text_tab, text_icon, "Text Steganography")
         self.init_image_tab()
         self.init_audio_tab()
+        self.init_video_tab()
+        self.init_text_tab()
         self.init_status_bar()
 
     def show_snackbar(self, message, duration=2500):
@@ -254,6 +266,198 @@ class CovertCommMainWindow(QMainWindow):
         layout.addLayout(right, 3)
         self.audio_tab.setLayout(layout)
 
+    def init_video_tab(self):
+        layout = QHBoxLayout()
+        left = QVBoxLayout()
+        right = QVBoxLayout()
+        instr = QLabel("Hide a secret message in a video file using pseudo-random LSB and AES. Select a video, enter your message and key, and click 'Hide Message'. To extract, select a stego video and click 'Extract Message'.")
+        instr.setWordWrap(True)
+        instr.setStyleSheet(f"color: {SHARK}; font-size: 13px; background: transparent; border: none;")
+        left.addWidget(instr)
+        file_row = QHBoxLayout()
+        self.video_select_btn = QPushButton("Select Video")
+        self.video_select_btn.setStyleSheet(f"background: {SHARK}; color: {NOMAD}; font-weight: bold; border-radius: 6px; padding: 8px 18px;")
+        self.video_select_btn.clicked.connect(self.select_video)
+        self.video_path_label = QLabel("No video selected")
+        self.video_path_label.setStyleSheet(f"color: {SHARK}; font-size: 12px;")
+        file_row.addWidget(self.video_select_btn)
+        file_row.addWidget(self.video_path_label)
+        left.addLayout(file_row)
+        msg_label = QLabel("Message")
+        msg_label.setStyleSheet(f"font-weight: bold; color: {SHARK}; background: transparent; border: none; padding: 0;")
+        self.video_message_text = QTextEdit()
+        self.video_message_text.setFixedHeight(80)
+        self.video_message_text.setStyleSheet(f"font-size: 13px; border-radius: 6px; background: #fff; color: {SHARK}; border: 1px solid {MANTLE};")
+        left.addWidget(msg_label)
+        left.addWidget(self.video_message_text)
+        key_label = QLabel("AES Key (16/24/32 bytes)")
+        self.video_key_input = QLineEdit()
+        self.video_key_input.setEchoMode(QLineEdit.Password)
+        left.addWidget(key_label)
+        left.addWidget(self.video_key_input)
+        btn_row = QHBoxLayout()
+        self.hide_video_btn = QPushButton("Hide Message")
+        self.hide_video_btn.setStyleSheet(f"background: {SHARK}; color: {NOMAD}; font-weight: bold; border-radius: 6px; padding: 10px;")
+        self.hide_video_btn.clicked.connect(self.hide_video_message)
+        self.extract_video_btn = QPushButton("Extract Message")
+        self.extract_video_btn.setStyleSheet(f"background: #fff; color: {SHARK}; font-weight: bold; border: 2px solid {MANTLE}; border-radius: 6px; padding: 10px;")
+        self.extract_video_btn.clicked.connect(self.extract_video_message)
+        btn_row.addWidget(self.hide_video_btn)
+        btn_row.addWidget(self.extract_video_btn)
+        left.addLayout(btn_row)
+        left.addStretch()
+        left_card = self.card(QWidget())
+        left_card.layout().addLayout(left)
+        layout.addWidget(left_card, 2)
+        layout.addLayout(right, 3)
+        self.video_tab.setLayout(layout)
+        self.selected_video_path = None
+        self.stego_video_path = None
+
+    def select_video(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Video", "", "Video Files (*.avi *.mp4 *.mov *.mkv);;All Files (*)")
+        if file_path:
+            self.selected_video_path = file_path
+            self.video_path_label.setText(os.path.basename(file_path))
+            self.video_message_text.clear()  # Reset message box
+            self.stego_video_path = None
+        else:
+            self.video_path_label.setText("No video selected")
+
+    def hide_video_message(self):
+        if not self.selected_video_path:
+            self.show_snackbar("Please select a video file first", 3000)
+            return
+        message = self.video_message_text.toPlainText().strip()
+        if not message:
+            self.show_snackbar("Please enter a message to hide", 3000)
+            return
+        key = self.video_key_input.text().encode()
+        if not key:
+            self.show_snackbar("Please enter an AES key.", 3500)
+            return
+        try:
+            output_path = None  # Will default to samples/stego_video/
+            result_path = encode_stego('video', self.selected_video_path, message, key, output_path)
+            self.show_snackbar(f"Message hidden successfully! Saved to {os.path.basename(result_path)}", 3500)
+            self.stego_video_path = result_path
+            self.stego_video_path = result_path
+        except Exception as e:
+            self.show_snackbar(f"Error: {str(e)}", 4000)
+
+    def extract_video_message(self):
+        if not self.selected_video_path:
+            self.show_snackbar("Please select a video file first", 3000)
+            return
+        key = self.video_key_input.text().encode()
+        if not key:
+            self.show_snackbar("Please enter an AES key.", 3500)
+            return
+        try:
+            secret = decode_stego('video', self.selected_video_path, key)
+            if secret:
+                self.video_message_text.setPlainText(secret)
+                self.show_snackbar("Message extracted and decrypted successfully!", 3000)
+            else:
+                self.show_snackbar("No hidden message found or wrong key.", 3500)
+        except Exception as e:
+            self.show_snackbar(f"Error: {str(e)}", 4000)
+
+    def init_text_tab(self):
+        layout = QHBoxLayout()
+        left = QVBoxLayout()
+        right = QVBoxLayout()
+        instr = QLabel("Hide a secret message in a text file using zero-width characters and AES. Select a text file, enter your message and key, and click 'Hide Message'. To extract, select a stego text file and click 'Extract Message'.")
+        instr.setWordWrap(True)
+        instr.setStyleSheet(f"color: {SHARK}; font-size: 13px; background: transparent; border: none;")
+        left.addWidget(instr)
+        file_row = QHBoxLayout()
+        self.text_select_btn = QPushButton("Select Text File")
+        self.text_select_btn.setStyleSheet(f"background: {SHARK}; color: {NOMAD}; font-weight: bold; border-radius: 6px; padding: 8px 18px;")
+        self.text_select_btn.clicked.connect(self.select_text_file)
+        self.text_path_label = QLabel("No text file selected")
+        self.text_path_label.setStyleSheet(f"color: {SHARK}; font-size: 12px;")
+        file_row.addWidget(self.text_select_btn)
+        file_row.addWidget(self.text_path_label)
+        left.addLayout(file_row)
+        msg_label = QLabel("Message")
+        msg_label.setStyleSheet(f"font-weight: bold; color: {SHARK}; background: transparent; border: none; padding: 0;")
+        self.text_message_text = QTextEdit()
+        self.text_message_text.setFixedHeight(80)
+        self.text_message_text.setStyleSheet(f"font-size: 13px; border-radius: 6px; background: #fff; color: {SHARK}; border: 1px solid {MANTLE};")
+        left.addWidget(msg_label)
+        left.addWidget(self.text_message_text)
+        key_label = QLabel("AES Key (16/24/32 bytes)")
+        self.text_key_input = QLineEdit()
+        self.text_key_input.setEchoMode(QLineEdit.Password)
+        left.addWidget(key_label)
+        left.addWidget(self.text_key_input)
+        btn_row = QHBoxLayout()
+        self.hide_text_btn = QPushButton("Hide Message")
+        self.hide_text_btn.setStyleSheet(f"background: {SHARK}; color: {NOMAD}; font-weight: bold; border-radius: 6px; padding: 10px;")
+        self.hide_text_btn.clicked.connect(self.hide_text_message)
+        self.extract_text_btn = QPushButton("Extract Message")
+        self.extract_text_btn.setStyleSheet(f"background: #fff; color: {SHARK}; font-weight: bold; border: 2px solid {MANTLE}; border-radius: 6px; padding: 10px;")
+        self.extract_text_btn.clicked.connect(self.extract_text_message)
+        btn_row.addWidget(self.hide_text_btn)
+        btn_row.addWidget(self.extract_text_btn)
+        left.addLayout(btn_row)
+        left.addStretch()
+        left_card = self.card(QWidget())
+        left_card.layout().addLayout(left)
+        layout.addWidget(left_card, 2)
+        layout.addLayout(right, 3)
+        self.text_tab.setLayout(layout)
+        self.selected_text_path = None
+
+    def select_text_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Text File", "", "Text Files (*.txt);;All Files (*)")
+        if file_path:
+            self.selected_text_path = file_path
+            self.text_path_label.setText(os.path.basename(file_path))
+            self.text_message_text.clear()  # Reset message box
+        else:
+            self.text_path_label.setText("No text file selected")
+
+    def hide_text_message(self):
+        if not self.selected_text_path:
+            self.show_snackbar("Please select a text file first", 3000)
+            return
+        message = self.text_message_text.toPlainText().strip()
+        if not message:
+            self.show_snackbar("Please enter a message to hide", 3000)
+            return
+        key = self.text_key_input.text().encode()
+        if not key:
+            self.show_snackbar("Please enter an AES key.", 3500)
+            return
+        try:
+            output_path = None  # Will default to samples/stego_txt/
+            result_path = encode_stego('text', self.selected_text_path, message, key, output_path)
+            self.show_snackbar(f"Message hidden successfully! Saved to {os.path.basename(result_path)}", 3500)
+        except Exception as e:
+            self.show_snackbar(f"Error: {str(e)}", 4000)
+
+    def extract_text_message(self):
+        if not self.selected_text_path:
+            self.show_snackbar("Please select a text file first", 3000)
+            return
+        key = self.text_key_input.text().encode()
+        if not key:
+            self.show_snackbar("Please enter an AES key.", 3500)
+            return
+        try:
+            with open(self.selected_text_path, 'r', encoding='utf-8') as f:
+                stego_text = f.read()
+            secret = decode_stego('text', self.selected_text_path, key)
+            if secret:
+                self.text_message_text.setPlainText(secret)
+                self.show_snackbar("Message extracted and decrypted successfully!", 3000)
+            else:
+                self.show_snackbar("No hidden message found or wrong key.", 3500)
+        except Exception as e:
+            self.show_snackbar(f"Error: {str(e)}", 4000)
+
     # --- IMAGE TAB LOGIC ---
     def select_image(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "PNG Images (*.png);;All Files (*)")
@@ -293,12 +497,10 @@ class CovertCommMainWindow(QMainWindow):
         if not password:
             self.show_snackbar("Please enter a password for encryption", 3000)
             return
-        from .covertcomm_core import aes_encrypt
-        encrypted_message = aes_encrypt(message, password)
         try:
             capacity = self.image_stego.calculate_capacity(self.selected_image_path, method='lsb')
-            if len(encrypted_message) > capacity:
-                self.show_snackbar(f"Encrypted message too long! Maximum capacity: {capacity} characters", 3500)
+            if len(message) > capacity:
+                self.show_snackbar(f"Message too long! Maximum capacity: {capacity} characters", 3500)
                 return
         except Exception as e:
             self.show_snackbar(f"Error checking capacity: {str(e)}", 3500)
@@ -312,7 +514,7 @@ class CovertCommMainWindow(QMainWindow):
             self.show_snackbar(f"Could not create output folder: {str(e)}", 3500)
             return
         try:
-            success = self.image_stego.hide_message_in_image(self.selected_image_path, encrypted_message, output_path, method='lsb', password=password)
+            success = self.image_stego.hide_message_in_image(self.selected_image_path, message, output_path, method='lsb', password=password)
             if success:
                 self.show_snackbar("Message hidden successfully!", 2500)
                 self.load_stego_image_preview(output_path)
@@ -341,12 +543,10 @@ class CovertCommMainWindow(QMainWindow):
         if not password:
             self.show_snackbar("Please enter the password to decrypt", 3000)
             return
-        from .covertcomm_core import aes_decrypt
         try:
             message = self.image_stego.extract_message_from_image(self.selected_image_path, method='lsb', password=password)
             if message:
-                decrypted_message = aes_decrypt(message, password)
-                self.image_message_text.setPlainText(decrypted_message)
+                self.image_message_text.setPlainText(message)
                 self.show_snackbar("Message extracted and decrypted successfully!", 2500)
             else:
                 self.show_snackbar("No hidden message found in the image", 3000)
@@ -406,12 +606,10 @@ class CovertCommMainWindow(QMainWindow):
         if not password:
             self.show_snackbar("Please enter a password for encryption", 3000)
             return
-        from .covertcomm_core import aes_encrypt
-        encrypted_message = aes_encrypt(message, password)
         try:
             capacity = self.audio_stego.calculate_capacity(self.selected_audio_path, method='lsb')
-            if len(encrypted_message) > capacity:
-                self.show_snackbar(f"Encrypted message too long! Maximum capacity: {capacity} characters", 3500)
+            if len(message) > capacity:
+                self.show_snackbar(f"Message too long! Maximum capacity: {capacity} characters", 3500)
                 return
         except Exception as e:
             self.show_snackbar(f"Error checking capacity: {str(e)}", 3500)
@@ -425,7 +623,7 @@ class CovertCommMainWindow(QMainWindow):
             self.show_snackbar(f"Could not create output folder: {str(e)}", 3500)
             return
         try:
-            success = self.audio_stego.hide_message_in_audio(self.selected_audio_path, encrypted_message, output_path, method='lsb', password=password)
+            success = self.audio_stego.hide_message_in_audio(self.selected_audio_path, message, output_path, method='lsb', password=password)
             if success:
                 self.show_snackbar("Message hidden successfully!", 2500)
                 self.stego_audio_info_label.setText(f"Stego audio created: {os.path.basename(output_path)}")
@@ -442,12 +640,10 @@ class CovertCommMainWindow(QMainWindow):
         if not password:
             self.show_snackbar("Please enter the password to decrypt", 3000)
             return
-        from .covertcomm_core import aes_decrypt
         try:
             message = self.audio_stego.extract_message_from_audio(self.selected_audio_path, method='lsb', password=password)
             if message:
-                decrypted_message = aes_decrypt(message, password)
-                self.audio_message_text.setPlainText(decrypted_message)
+                self.audio_message_text.setPlainText(message)
                 self.show_snackbar("Message extracted and decrypted successfully!", 2500)
             else:
                 self.show_snackbar("No hidden message found in the audio", 3000)

@@ -13,6 +13,8 @@ from scipy.fft import dct, idct
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import base64
+from .video_steganography import encode_video, decode_video
+from .text_steganography import encode_text, decode_text
 
 # Helper functions for PKCS7 padding
 
@@ -587,3 +589,23 @@ class AudioSteganography:
     def extract_message_from_audio(self, stego_audio_path, method='lsb', password=None):
         """Extract message from audio using LSB method only."""
         return self.extract_message_lsb_audio(stego_audio_path, password=password)
+
+def encode_stego(stego_type, cover_path, secret_message, key, output_path=None):
+    if stego_type == 'video':
+        return encode_video(cover_path, secret_message, key, output_path)
+    elif stego_type == 'text':
+        with open(cover_path, 'r', encoding='utf-8') as f:
+            cover_text = f.read()
+        return encode_text(cover_text, secret_message, key, output_path, cover_path)
+    else:
+        raise ValueError('Unsupported steganography type')
+
+def decode_stego(stego_type, stego_path, key):
+    if stego_type == 'video':
+        return decode_video(stego_path, key)
+    elif stego_type == 'text':
+        with open(stego_path, 'r', encoding='utf-8') as f:
+            stego_text = f.read()
+        return decode_text(stego_text, key)
+    else:
+        raise ValueError('Unsupported steganography type')
